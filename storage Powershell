@@ -1,0 +1,117 @@
+#Main Function for creating New Storage Account
+Function CreateNewStorage
+{
+	Param(
+    	#ResourceGroup
+    	[Parameter(Mandatory = $true)]
+    	[String]$resourceGroup,
+    	#StorageName
+    	[Parameter(Mandatory = $true)]
+    	[String]$storageName,
+        #Location
+    	[Parameter(Mandatory = $true)]
+    	[String]$location,
+        #storageSkuName
+    	[Parameter(Mandatory = $true)]
+    	[String]$storageSkuName,
+        #Kind
+    	[Parameter(Mandatory = $true)]
+    	[String]$kindStorage,
+        #AccessTier
+    	[Parameter(Mandatory = $true)]
+        [String]$accessTier
+	)
+        Write-Host "Starting Process: Create Storage Account .........." -ForegroundColor Red
+        
+        #Check for existing Storage Accounts with same name.    
+        CheckExisting -resourceGroup $resourceGroup -storageName $storageName
+
+        #Create New Storage Account if existing Storage Accounts doesn't have same name.
+        CreateStorage -resourceGroup $resourceGroup -storageName $storageName -location $location -storageSkuName $storageSkuName -kindStorage $kindStorage -accessTier $accessTier
+        #Check if New Storage Account created Successfully or not.
+        CheckSuccessful -resourceGroup $resourceGroup -storageName $storageName
+}
+
+#Function to check whether Storage Account exists with same name or not.
+Function CheckExisting
+{
+    Param(
+        #ResourceGroup
+    	[Parameter(Mandatory = $true)]
+    	[String]$resourceGroup,
+    	#StorageName
+    	[Parameter(Mandatory = $true)]
+    	[String]$storageName
+    )
+        $checkstorage = Get-AzStorageAccount -ResourceGroupName $resourceGroup -AccountName $storageName -ErrorAction "SilentlyContinue" -ErrorVariable errPrimaryService -Verbose:$false
+        if([string]::IsNullOrEmpty($checkstorage))
+        {
+            Write-Host "No Existing Storage Account with name "$($storageName)" found! So creating New Storage Account .........." -ForegroundColor Red
+        }
+        else
+        {  
+            Write-Error "ERROR: Storage Account "$($storageName)" already exists!!!"
+            exit 1 
+        }
+}
+
+#Function to create New Storage Account
+Function CreateStorage
+{
+    Param(
+        #ResourceGroup
+    	[Parameter(Mandatory = $true)]
+    	[String]$resourceGroup,
+    	#StorageName
+    	[Parameter(Mandatory = $true)]
+    	[String]$storageName,
+        #Location
+    	[Parameter(Mandatory = $true)]
+    	[String]$location,
+        #storageSkuName
+    	[Parameter(Mandatory = $true)]
+    	[String]$storageSkuName,
+        #Kind
+    	[Parameter(Mandatory = $true)]
+    	[String]$kindStorage,
+        #AccessTier
+    	[Parameter(Mandatory = $true)]
+    	[String]$accessTier
+    )
+        New-AzStorageAccount -ResourceGroupName $resourceGroup -Name $storageName -Location $location -SkuName $storageSkuName -Kind $kindStorage -AccessTier $accessTier
+        $key=(Get-AzStorageAccountKey -ResourceGroupName $resourceGroup -AccountName $storageName).Value[0]
+        $storageContext=New-AzStorageContext -StorageAccountName $storageName -StorageAccountKey $key
+}
+
+#Function to check if New Storage Account created Successfully or not.
+Function CheckSuccessful
+{
+    Param(
+        #ResourceGroup
+    	[Parameter(Mandatory = $true)]
+    	[String]$resourceGroup,
+    	#StorageName
+    	[Parameter(Mandatory = $true)]
+    	[String]$storageName
+    )
+        $checkstorage = Get-AzStorageAccount -ResourceGroupName $resourceGroup -AccountName $storageName -ErrorAction "SilentlyContinue" -ErrorVariable errPrimaryService -Verbose:$false
+        if ($checkstorage -ne $null)
+        {
+            Write-Host "Storage Account "$($storageName)" created successfully!!!" -ForegroundColor Red
+
+            #Storing Access Key of Storage.
+            $key=(Get-AzStorageAccountKey -ResourceGroupName $resourceGroup -AccountName $storageName).Value[0]
+            $connectionString="DefaultEndpointsProtocol=https;AccountName=$storageName;AccountKey=$key;EndpointSuffix=core.windows.net"
+            $keyoutput="Storage Account`r`n--------------------`r`nName: $($storageName)`r`nKey: $($key)`r`nConnection String: $($connectionString)`r`nSku Name: $($checkstorage.Sku.Name)`r`nTier: $($checkstorage.Sku.Tier)`r`n"
+            Add-Content -Path "C:\NewInstanceDetails.txt" -Value $keyoutput -Force
+            exit 0
+        }
+        else
+        {
+            Write-Error "ERROR: Something went wrong while creating Storage Account!!!"
+            exit 1
+        }
+}
+
+#Call to Main Function for creating New Storage Account
+CreateNewStorage -resourceGroup $ENV:resourceGroup -storageName $ENV:storageName -location $ENV:location -storageSkuName $ENV:storageSkuName -kindStorage $ENV:kindStorage -accessTier $ENV:accessTier
